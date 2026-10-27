@@ -51,11 +51,13 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
         update() { throw Error("Module tried to deduct resources"); }
       };
       window.nativeCalls = [];
+      window.sheetCalls = [];
       const names = ["Zaczarowany nóż", "Przywołanie mgły", "Szept otchłani", "Znak Starszych Bogów", "Brama snów", "Oko w ciemności", "Kontakt z głębiną", "Ochronny krąg"];
       actor.items = names.map((name, index) => {
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="180" height="280"><defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="hsl(${index * 35 + 220},35%,10%)"/><stop offset="1" stop-color="hsl(${index * 35 + 240},40%,35%)"/></linearGradient></defs><rect width="180" height="280" fill="url(#g)"/><circle cx="90" cy="110" r="48" fill="none" stroke="#c9b59a" stroke-width="1"/><path d="M90 50 L108 150 L52 88 L128 88 L72 150 Z" fill="none" stroke="#c9b59a"/><circle cx="90" cy="110" r="3" fill="#eee"/></svg>`;
         return {
           id: "spell" + index, name, img: "data:image/svg+xml," + encodeURIComponent(svg), type: "spell", parent: actor,
+          sheet: { async render(options) { sheetCalls.push({ id: "spell" + index, options }); } },
           flags: { CoC7: { cocidFlag: { id: "i.spell.example-" + index } } },
           system: {
             costs: { magicPoints: "999" },
@@ -85,8 +87,16 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
     assert.ok(Math.abs(layout.gap) < 1);
     assert.ok(layout.selected > layout.regular);
     assert.equal(layout.radius, "0px");
+    const shell = await page.locator("#coc7-spell-dock").evaluate(element => {
+      const style = getComputedStyle(element);
+      return { background: style.backgroundColor, border: style.borderWidth, shadow: style.boxShadow };
+    });
+    assert.deepEqual(shell, { background: "rgba(0, 0, 0, 0)", border: "0px", shadow: "none" });
     assert.equal(await page.locator('.dock-details [data-panel="description"]').isVisible(), true);
     assert.equal(await page.locator('.dock-details [data-panel="costs"]').isVisible(), false);
+    await page.locator('.dock-details [data-action="open-item"]').click();
+    assert.deepEqual(await page.evaluate(() => sheetCalls), [{ id: "spell0", options: { force: true } }]);
+    assert.equal(await page.evaluate(() => nativeCalls.length), 0);
     await page.locator('.dock-details [data-tab="costs"]').click();
     assert.equal(await page.locator(".dock-details .cost-step").count(), 4);
     assert.match(await page.locator('.dock-details [data-panel="costs"]').innerText(), /2D6 \+ @amount/);
@@ -96,6 +106,8 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
     await page.locator('.spell-card[data-spell-id="spell1"]').click();
     await page.waitForSelector('.dock-details [data-panel="description"]:visible');
     assert.equal(await page.locator('.dock-details [data-panel="costs"]').isVisible(), false);
+    await page.locator('.dock-details [data-action="open-item"]').click();
+    assert.deepEqual(await page.evaluate(() => sheetCalls.at(-1)), { id: "spell1", options: { force: true } });
     await page.locator('.dock-details [data-action="cast"]').click();
     await page.waitForFunction(() => nativeCalls.length === 1);
     assert.deepEqual(await page.evaluate(() => nativeCalls[0]), { id: "spell1", hidden: true });
@@ -103,11 +115,30 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
     await page.keyboard.press("ArrowRight");
     assert.equal(await page.locator('.dock-details [data-panel="costs"]').isVisible(), true);
     await fs.mkdir(path.join(root, ".local"), { recursive: true });
-    await page.screenshot({ path: path.join(root, ".local/costs-v020.png") });
+    await page.screenshot({ path: path.join(root, ".local/costs-v030.png") });
     await page.locator('.dock-details [data-tab="description"]').click();
-    await page.screenshot({ path: path.join(root, ".local/description-v020.png") });
+    await page.screenshot({ path: path.join(root, ".local/description-v030.png") });
     await page.locator('[data-action="toggle"]').click();
     assert.equal(await page.locator(".dock-details").isVisible(), false);
+    await page.locator('.spell-card[data-spell-id="spell2"]').hover();
+    await page.waitForSelector(".spell-flyout.is-tooltip:visible");
+    assert.equal(await page.locator(".tooltip-header .spell-title").innerText(), "Szept otchłani");
+    assert.match(await page.locator(".tooltip-meta").innerText(), /2 godziny/);
+    assert.equal(await page.locator(".tooltip-costs .cost-step").count(), 4);
+    assert.match(await page.locator(".tooltip-description").innerText(), /Starożytny rytuał/);
+    assert.equal(await page.locator(".spell-flyout [data-tab]").count(), 0);
+    assert.equal(await page.evaluate(() => nativeCalls.length), 1);
+    await page.locator(".tooltip-header").hover();
+    assert.equal(await page.locator(".spell-flyout").isVisible(), true);
+    const tooltipBounds = await page.locator(".spell-flyout").boundingBox();
+    const compactBounds = await page.locator("#coc7-spell-dock").boundingBox();
+    assert.ok(tooltipBounds.y + tooltipBounds.height < compactBounds.y);
+    await page.locator(".tooltip-body").evaluate(element => { element.scrollTop = element.scrollHeight; });
+    await page.locator(".tooltip-description").hover();
+    assert.equal(await page.locator(".spell-flyout").isVisible(), true);
+    await page.screenshot({ path: path.join(root, ".local/tooltip-v030.png") });
+    await page.locator('input[type="search"]').hover();
+    await page.waitForSelector(".spell-flyout", { state: "hidden" });
     await page.locator('input[type="search"]').fill("nie ma wyników");
     await page.waitForFunction(() => document.querySelectorAll(".spell-card").length === 0);
     await page.locator('[data-action="clear"]').click();
@@ -115,6 +146,7 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
     const before = await page.locator(".dock-carousel").boundingBox();
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.locator('.spell-card[data-spell-id="spell0"]').click();
+    assert.equal(await page.evaluate(() => nativeCalls.length), 1);
     await page.waitForFunction(() => {
       const selected = document.querySelector(".spell-card.selected").getBoundingClientRect();
       const regular = document.querySelector(".spell-card:not(.selected)").getBoundingClientRect();
@@ -126,13 +158,20 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.locator('.spell-card[data-spell-id="spell0"]').click({ button: "right" });
     await page.waitForSelector(".spell-flyout:visible");
-    assert.equal(await page.locator('.spell-flyout [data-panel="description"]').isVisible(), true);
-    await page.locator('.spell-flyout [data-tab="costs"]').click();
+    assert.equal(await page.locator('.spell-flyout .tooltip-description').count(), 1);
     assert.equal(await page.locator(".spell-flyout .cost-step").count(), 4);
     const fly = await page.locator(".spell-flyout").boundingBox();
     assert.ok(fly.x >= 0 && fly.x + fly.width <= 1440);
     await page.keyboard.press("Escape");
     assert.equal(await page.locator(".spell-flyout").isVisible(), false);
+    await page.locator('.spell-card[data-spell-id="spell0"]').click();
+    await page.waitForFunction(() => nativeCalls.length === 2);
+    assert.deepEqual(await page.evaluate(() => nativeCalls[1]), { id: "spell0", hidden: true });
+    await page.locator('.spell-card[data-spell-id="spell0"]').click();
+    assert.equal(await page.evaluate(() => nativeCalls.length), 2);
+    await page.locator('.spell-card[data-spell-id="spell3"]').dblclick();
+    await page.waitForFunction(() => nativeCalls.length === 3);
+    assert.deepEqual(await page.evaluate(() => nativeCalls[2]), { id: "spell3", hidden: true });
     await page.locator('[data-action="toggle"]').click();
     await page.waitForSelector('.dock-details [data-panel="description"]:visible');
     await page.locator('.dock-details [data-tab="description"]').click();
@@ -143,7 +182,14 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
     const mobile = await page.locator("#coc7-spell-dock").boundingBox();
     assert.ok(mobile.x >= 0 && mobile.x + mobile.width <= 390);
     assert.ok(mobile.y >= 0 && mobile.y + mobile.height <= 844);
-    await page.screenshot({ path: path.join(root, ".local/mobile-v020.png") });
+    await page.screenshot({ path: path.join(root, ".local/mobile-v030.png") });
+    await page.locator('[data-action="toggle"]').click();
+    await page.locator('.spell-card.selected').hover();
+    await page.waitForSelector(".spell-flyout.is-tooltip:visible");
+    const mobileTooltip = await page.locator(".spell-flyout").boundingBox();
+    assert.ok(mobileTooltip.x >= 0 && mobileTooltip.x + mobileTooltip.width <= 390);
+    assert.ok(mobileTooltip.y >= 0 && mobileTooltip.y + mobileTooltip.height <= 844);
+    await page.keyboard.press("Escape");
     for (let i = 0; i < 3; i++) {
       await page.evaluate(async () => {
         dockModule.closeDock();
@@ -154,6 +200,6 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
       });
     }
     assert.deepEqual(errors, []);
-    console.log("PASS: touching square cards, selection/frame growth, description/cost tabs, native Test Cast, PPM, search, mobile layout and lifecycle");
+    console.log("PASS: frameless UI, item sheet gear, hover tooltip, repeated selection/double-click native cast, tabs, PPM, search, mobile and lifecycle");
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

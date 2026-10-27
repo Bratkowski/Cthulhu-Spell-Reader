@@ -3,7 +3,10 @@
     <h2 class="spell-title">{{name}}</h2>
     <div class="spell-meta">CoCID: {{cocid}} | Czas: {{castingTime}} | Typ: {{types}}</div>
   </div>
-  <button class="cast-spell" type="button" data-action="cast">{{castLabel}}</button>
+  <div class="preview-actions">
+    <button class="cast-spell" type="button" data-action="cast">{{castLabel}}</button>
+    <button class="item-sheet" type="button" data-action="open-item" title="Otwórz zaklęcie jako przedmiot" aria-label="Otwórz zaklęcie jako przedmiot"><span aria-hidden="true">⚙</span></button>
+  </div>
 </header>
 <div class="preview-tabs" role="tablist" aria-label="Podgląd zaklęcia">
   <button type="button" role="tab" id="{{prefix}}-description-tab" aria-controls="{{prefix}}-description" aria-selected="true" data-tab="description">Opis</button>

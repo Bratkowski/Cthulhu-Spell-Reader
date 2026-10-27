@@ -14,10 +14,11 @@
   flex-direction: column;
   overflow: hidden;
   color: #eee;
-  background: rgba(25, 25, 25, .95);
-  border: 1px solid #555;
-  border-radius: 14px;
-  box-shadow: 0 8px 28px #0008;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  gap: 6px;
   z-index: 110;
   font-size: 13px;
   line-height: 1.4;
@@ -35,7 +36,8 @@
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border-bottom: 1px solid #ffffff18;
+  background: rgba(25, 25, 25, .9);
+  border-radius: 8px;
 }
 #coc7-spell-dock .hdr-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 270px; }
 #coc7-spell-dock .caster-info { min-width: 0; }
@@ -53,10 +55,10 @@
   flex: 0 0 auto;
   height: var(--carousel-height);
   min-height: 0;
-  border-bottom: 1px solid #ffffff18;
+  border: 0;
   transition: height 200ms ease;
 }
-#coc7-spell-dock .car-arrow { width: 100%; height: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+#coc7-spell-dock .car-arrow { align-self: center; width: 26px; height: 32px; margin: 0; padding: 0; border: 0; border-radius: 6px; background: #191919c9; }
 #coc7-spell-dock .car-track {
   display: flex;
   align-items: center;
@@ -116,13 +118,16 @@
   pointer-events: none;
 }
 #coc7-spell-dock .spell-card.selected .spell-name { font-size: 14px; }
-#coc7-spell-dock .dock-details { display: flex; flex-direction: column; min-height: 0; max-height: min(390px, 48dvh); overflow: hidden; }
+#coc7-spell-dock .dock-details { display: flex; flex-direction: column; min-height: 0; max-height: min(390px, 48dvh); overflow: hidden; background: rgba(25, 25, 25, .94); border-radius: 8px; }
 #coc7-spell-dock .preview-header { display: flex; flex: 0 0 auto; align-items: center; gap: 12px; padding: 12px 14px; }
 #coc7-spell-dock .preview-heading { flex: 1; min-width: 0; }
 #coc7-spell-dock .spell-title { margin: 0 0 4px; border: 0; padding: 0; color: inherit; font-size: 20px; font-weight: 800; }
 #coc7-spell-dock .spell-meta { opacity: .75; font-size: 12px; overflow-wrap: anywhere; }
 #coc7-spell-dock .cast-spell { width: auto; flex: 0 0 auto; margin: 0; padding: 7px 14px; background: #694199; border: 1px solid #b28adf; border-radius: 6px; font-weight: 700; }
 #coc7-spell-dock .cast-spell:hover { background: #8153b6; }
+#coc7-spell-dock .preview-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+#coc7-spell-dock .item-sheet { display: grid; place-items: center; width: 32px; height: 34px; padding: 0; margin: 0; border: 1px solid #ffffff30; border-radius: 6px; background: #ffffff0c; font-size: 20px; line-height: 1; }
+#coc7-spell-dock .item-sheet:hover { background: #ffffff20; }
 #coc7-spell-dock .preview-tabs { display: flex; flex: 0 0 auto; gap: 0; padding: 0 14px; border-bottom: 1px solid #ffffff25; }
 #coc7-spell-dock .preview-tabs button { width: auto; margin: 0; padding: 8px 16px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; opacity: .65; }
 #coc7-spell-dock .preview-tabs button[aria-selected=true] { border-bottom-color: #c1a0e8; opacity: 1; font-weight: 700; }
@@ -157,6 +162,16 @@
 #coc7-spell-dock .fly-close { position: absolute; right: 6px; top: 6px; z-index: 1; }
 #coc7-spell-dock .fly-preview { display: flex; flex-direction: column; min-height: 0; }
 #coc7-spell-dock .spell-flyout .preview-header { padding-right: 46px; }
+#coc7-spell-dock .spell-flyout.is-tooltip { width: min(460px, calc(100vw - 24px)); max-height: min(580px, calc(100dvh - 24px)); }
+#coc7-spell-dock .tooltip-header { flex: 0 0 auto; padding: 14px 44px 12px 16px; border-bottom: 1px solid #ffffff20; }
+#coc7-spell-dock .tooltip-meta { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 8px 0 0; }
+#coc7-spell-dock .tooltip-meta dt { opacity: .65; }
+#coc7-spell-dock .tooltip-meta dd { margin: 0; overflow-wrap: anywhere; }
+#coc7-spell-dock .tooltip-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px; }
+#coc7-spell-dock .tooltip-body section + section { margin-top: 16px; padding-top: 12px; border-top: 1px solid #ffffff20; }
+#coc7-spell-dock .tooltip-body h3 { margin: 0 0 10px; color: inherit; border: 0; font-size: 14px; }
+#coc7-spell-dock .tooltip-hint { flex: 0 0 auto; margin: 0; padding: 10px 16px; border-top: 1px solid #ffffff20; font-size: 11px; opacity: .65; }
+#coc7-spell-dock .tooltip-costs .cost-note { font-size: 12px; }
 @media (max-width: 520px) {
   #coc7-spell-dock .dock-header { gap: 7px; padding: 8px; }
   #coc7-spell-dock .hdr-left { flex-basis: calc(100% - 120px); order: 0; }

@@ -51,6 +51,10 @@ export async function openDock({ casterActor }) {
   let previewVersion = 0;
   let flyVersion = 0;
   let flySpellId = null;
+  let flyPinned = false;
+  let tooltipTimer;
+  let tooltipHideTimer;
+  let clickedSpellId = null;
   let casting = false;
   let disposed = false;
 
@@ -63,8 +67,12 @@ export async function openDock({ casterActor }) {
   }
 
   function closeFlyout() {
+    clearTimeout(tooltipTimer);
+    clearTimeout(tooltipHideTimer);
     flyVersion++;
     flySpellId = null;
+    flyPinned = false;
+    track.querySelectorAll("[aria-describedby]").forEach(card => card.removeAttribute("aria-describedby"));
     flyout.hidden = true;
   }
 
@@ -125,7 +133,7 @@ export async function openDock({ casterActor }) {
     });
   }
 
-  async function previewHTML(spell, prefix) {
+  async function previewHTML(spell, prefix, tooltip = false) {
     const [description, costs] = await Promise.all([
       foundry.applications.ux.TextEditor.implementation.enrichHTML(
         spell.system?.description?.value || "<i>Brak opisu.</i>",
@@ -133,7 +141,7 @@ export async function openDock({ casterActor }) {
       ),
       renderTemplate("spell-costs", getSpellCosts(spell))
     ]);
-    return renderTemplate("spell-preview", {
+    return renderTemplate(tooltip ? "spell-tooltip" : "spell-preview", {
       prefix,
       name: spell.name ?? "—",
       cocid: getSpellCoCID(spell) ?? "—",
@@ -170,7 +178,7 @@ export async function openDock({ casterActor }) {
     track.innerHTML = spells.map(spell => `
       <button type="button" class="spell-card${spell.id === state.spellId ? " selected" : ""}"
         data-spell-id="${escapeHtml(spell.id)}" aria-pressed="${spell.id === state.spellId}"
-        title="${escapeHtml(spell.name)}">
+        aria-label="${escapeHtml(spell.name)}">
         <img src="${escapeHtml(spell.img || "icons/svg/book.svg")}" alt="" draggable="false">
         <span class="spell-name">${escapeHtml(spell.name)}</span>
       </button>`).join("");
@@ -192,27 +200,68 @@ export async function openDock({ casterActor }) {
     if (!disposed) revealSelection();
   }
 
-  async function openFlyout(id, card) {
-    if (!flyout.hidden && flySpellId === id) return closeFlyout();
+  async function openFlyout(id, card, { pinned = false } = {}) {
+    clearTimeout(tooltipTimer);
+    clearTimeout(tooltipHideTimer);
+    if (!flyout.hidden && flySpellId === id) {
+      if (pinned && flyPinned) return closeFlyout();
+      flyPinned ||= pinned;
+      return;
+    }
     const spell = selectedSpell(id);
     if (!spell) return;
     const version = ++flyVersion;
     flySpellId = id;
+    flyPinned = pinned;
     flyPreview.dataset.spellId = id;
+    flyout.classList.toggle("is-tooltip", !state.expanded);
     try {
-      const html = await previewHTML(spell, `${DOCK_ID}-fly`);
-      if (disposed || version !== flyVersion) return;
+      const html = await previewHTML(spell, `${DOCK_ID}-fly`, !state.expanded);
+      if (disposed || version !== flyVersion || !card.isConnected) return;
       flyPreview.innerHTML = html;
       flyout.hidden = false;
+      track.querySelectorAll("[aria-describedby]").forEach(item => item.removeAttribute("aria-describedby"));
+      card.setAttribute("aria-describedby", flyout.id);
       syncCastButtons();
       const rect = card.getBoundingClientRect();
+      const anchorTop = state.expanded ? rect.top : dock.getBoundingClientRect().top;
+      flyout.style.maxHeight = state.expanded ? "" : `${Math.min(580, Math.max(140, anchorTop - 24))}px`;
       const width = flyout.offsetWidth;
       const height = flyout.offsetHeight;
       flyout.style.left = `${Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))}px`;
-      flyout.style.top = `${Math.max(12, Math.min(rect.top - height - 10, window.innerHeight - height - 12))}px`;
+      flyout.style.top = `${Math.max(12, Math.min(anchorTop - height - 10, window.innerHeight - height - 12))}px`;
     } catch (error) {
       if (version === flyVersion) closeFlyout();
       console.error("Cthulhu Spell Reader | Podgląd PPM", error);
+    }
+  }
+
+  function scheduleTooltip(card, delay = 240) {
+    if (state.expanded || flyPinned || casting) return;
+    clearTimeout(tooltipHideTimer);
+    clearTimeout(tooltipTimer);
+    tooltipTimer = setTimeout(() => {
+      if (!disposed && card.isConnected) void openFlyout(card.dataset.spellId, card);
+    }, delay);
+  }
+
+  function scheduleTooltipClose() {
+    clearTimeout(tooltipTimer);
+    if (flyPinned) return;
+    clearTimeout(tooltipHideTimer);
+    tooltipHideTimer = setTimeout(closeFlyout, 180);
+  }
+
+  async function runCast(spell) {
+    if (casting || !spell) return;
+    clickedSpellId = null;
+    closeFlyout();
+    casting = true;
+    syncCastButtons();
+    try { await castSpell(spell); }
+    finally {
+      casting = false;
+      if (!disposed) { updateStats(); syncCastButtons(); }
     }
   }
 
@@ -230,12 +279,20 @@ export async function openDock({ casterActor }) {
   dock.addEventListener("click", async event => {
     const button = event.target.closest("button");
     if (!button || !dock.contains(button)) return;
-    if (button.dataset.spellId) return selectSpell(button.dataset.spellId);
+    if (button.dataset.spellId) {
+      const id = button.dataset.spellId;
+      if (!state.expanded && clickedSpellId === id && state.spellId === id) return runCast(selectedSpell(id));
+      clickedSpellId = state.expanded ? null : id;
+      await selectSpell(id);
+      if (!disposed && !state.expanded && state.spellId === id && !casting) scheduleTooltip(button, 0);
+      return;
+    }
     if (button.dataset.tab) return changeTab(button);
     switch (button.dataset.action) {
       case "close": closeDock(); break;
       case "close-flyout": closeFlyout(); break;
       case "toggle":
+        clickedSpellId = null;
         state.expanded = !state.expanded;
         closeFlyout();
         renderCarousel();
@@ -243,6 +300,7 @@ export async function openDock({ casterActor }) {
         await Promise.all([renderPreview(), saveState()]);
         break;
       case "clear":
+        clickedSpellId = null;
         clearTimeout(searchTimer);
         search.value = state.search = "";
         closeFlyout();
@@ -253,16 +311,19 @@ export async function openDock({ casterActor }) {
         track.scrollBy({ left: track.clientWidth * 0.8 * (button.dataset.action === "left" ? -1 : 1), behavior: "smooth" });
         break;
       case "cast": {
-        if (casting) break;
+        const id = button.closest("[data-spell-id]")?.dataset.spellId;
+        await runCast(selectedSpell(id));
+        break;
+      }
+      case "open-item": {
         const id = button.closest("[data-spell-id]")?.dataset.spellId;
         const spell = selectedSpell(id);
-        if (!spell) break;
-        casting = true;
-        syncCastButtons();
-        try { await castSpell(spell); }
-        finally {
-          casting = false;
-          if (!disposed) { updateStats(); syncCastButtons(); }
+        if (!spell?.sheet) break;
+        closeFlyout();
+        try { await spell.sheet.render({ force: true }); }
+        catch (error) {
+          console.error("Cthulhu Spell Reader | Karta przedmiotu", error);
+          ui.notifications.error("Nie udało się otworzyć karty zaklęcia.");
         }
         break;
       }
@@ -274,16 +335,43 @@ export async function openDock({ casterActor }) {
     if (!card) return;
     event.preventDefault();
     event.stopPropagation();
-    void openFlyout(card.dataset.spellId, card);
+    void openFlyout(card.dataset.spellId, card, { pinned: true });
+  }, { signal });
+  track.addEventListener("pointerover", event => {
+    const card = event.target.closest(".spell-card");
+    if (card && !card.contains(event.relatedTarget)) scheduleTooltip(card);
+  }, { signal });
+  track.addEventListener("pointerout", event => {
+    const card = event.target.closest(".spell-card");
+    if (card && !card.contains(event.relatedTarget)) scheduleTooltipClose();
+  }, { signal });
+  track.addEventListener("focusin", event => {
+    const card = event.target.closest(".spell-card");
+    if (card) scheduleTooltip(card, 0);
+  }, { signal });
+  track.addEventListener("focusout", event => {
+    if (!flyout.contains(event.relatedTarget)) scheduleTooltipClose();
+  }, { signal });
+  flyout.addEventListener("pointerenter", () => clearTimeout(tooltipHideTimer), { signal });
+  flyout.addEventListener("pointerleave", scheduleTooltipClose, { signal });
+  flyout.addEventListener("focusin", () => clearTimeout(tooltipHideTimer), { signal });
+  flyout.addEventListener("focusout", event => {
+    if (!flyout.contains(event.relatedTarget)) scheduleTooltipClose();
   }, { signal });
   track.addEventListener("wheel", event => {
     if (Math.abs(event.deltaY) <= Math.abs(event.deltaX) || track.scrollWidth <= track.clientWidth) return;
     event.preventDefault();
     track.scrollLeft += event.deltaY;
   }, { passive: false, signal });
-  track.addEventListener("scroll", updateArrows, { passive: true, signal });
+  track.addEventListener("scroll", () => {
+    closeFlyout();
+    updateArrows();
+    const card = track.querySelector(".spell-card:hover, .spell-card:focus-visible");
+    if (card) scheduleTooltip(card, 180);
+  }, { passive: true, signal });
   track.addEventListener("transitionend", () => { revealSelection(); updateArrows(); }, { signal });
   search.addEventListener("input", () => {
+    clickedSpellId = null;
     state.search = search.value;
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
@@ -316,6 +404,7 @@ export async function openDock({ casterActor }) {
   for (const name of ["createItem", "updateItem", "deleteItem"]) {
     hook(name, item => {
       if (!matchesActor(item.parent)) return;
+      clickedSpellId = null;
       closeFlyout();
       renderCarousel();
       void renderPreview();

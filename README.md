@@ -17,9 +17,12 @@ Albo skopiuj pliki repozytorium do `Data/modules/cthulhu-spell-reader/`, z `modu
 - Panel otwiera przycisk książki z czaszką w narzędziach tokenów. Ponowne kliknięcie zamyka panel.
 - Można też użyć makra `macros/toggle-spell-reader.js` lub przypisać skrót w ustawieniach klawiatury.
 - GM zaznacza token. Gracz korzysta z tokenu przypisanej postaci na aktywnej scenie.
-- Karty stykają się krawędziami. Wybrana karta powiększa się, a wysokość karuzeli płynnie się dostosowuje. Nazwa leży na przyciemnionym dole grafiki.
+- Karty stykają się krawędziami, bez wspólnej ramki ani tła wokół karuzeli. Wybrana karta powiększa się, a wysokość karuzeli płynnie się dostosowuje. Nazwa leży na przyciemnionym dole grafiki.
 - Pod nazwą, CoCID, czasem i typem są zakładki **Opis** (domyślna) i **Koszty**. Przycisk rzucania znajduje się w nagłówku podglądu.
-- PPM na karcie otwiera pływający podgląd z tymi samymi zakładkami. Escape, kliknięcie poza podglądem lub X zamyka go.
+- W rozwiniętym podglądzie zębatka obok **Test Cast** otwiera systemową kartę tego zaklęcia jako przedmiotu należącego do postaci.
+- W trybie zwiniętym najechanie na kartę lub ustawienie na niej fokusu pokazuje tooltip: nazwę, czas rzucania, typ, koszty i opis. Można przejść kursorem do tooltipu i przewijać jego treść.
+- W trybie zwiniętym pierwsze kliknięcie wybiera kartę, a drugie kliknięcie tej samej karty wykonuje natywny **Test Cast**. Zwykły dwuklik też uruchamia go raz. Po rzuceniu kolejne rzucanie wymaga ponownie dwóch kliknięć.
+- PPM przypina podgląd: w trybie zwiniętym tooltip, w rozwiniętym podgląd z zakładkami. Escape, kliknięcie poza podglądem lub X zamyka go.
 - Przycisk ⇵ zwija panel do karuzeli. Stan, wybór i wyszukiwanie są zapamiętywane osobno dla użytkownika.
 
 ## Rzucanie i koszty — system CoC7
@@ -39,7 +42,7 @@ Jeśli lista kroków jest pusta, panel pokazuje starsze `system.costs`. Zgodnie 
 | Plik | Odpowiedzialność |
 | --- | --- |
 | `scripts/main.js` | Uruchamianie, hooki, przycisk i API |
-| `scripts/spell-dock.js` | Karuzela, zakładki, PPM i stan użytkownika |
+| `scripts/spell-dock.js` | Karuzela, tooltipy, zakładki, karta przedmiotu i stan użytkownika |
 | `scripts/casting.js` | Wywołanie systemowego Test Cast |
 | `scripts/costs.js` | Prezentacja kroków kosztów bez ich wykonywania |
 | `scripts/actor.js` | Wybór tokenu i odczyt zasobów |
@@ -57,7 +60,7 @@ npx playwright install chromium
 node tests/browser-smoke.cjs
 ```
 
-Test korzysta z przykładowych danych i zastępczego API Foundry; sprawdza szablony, stykanie kart, powiększanie z animacją ramki, zakładki, przekazanie wywołania Test Cast, wyszukiwanie, PPM, wąski ekran oraz sprzątanie zdarzeń.
+Test korzysta z przykładowych danych i zastępczego API Foundry; sprawdza szablony, stykanie kart, animację, zakładki, tooltipy, podwójne wybranie karty, otwieranie przedmiotu, przekazanie wywołania Test Cast, wyszukiwanie, PPM, wąski ekran oraz sprzątanie zdarzeń.
 
 Pełne sprawdzenie natywnych okien i rozliczenia kosztów należy wykonać w świecie Foundry 14 / CoC7 8.16 na kopii postaci.
 

@@ -1,0 +1,18 @@
+<header class="tooltip-header">
+  <h2 class="spell-title">{{name}}</h2>
+  <dl class="tooltip-meta">
+    <dt>Czas rzucania</dt><dd>{{castingTime}}</dd>
+    <dt>Typ</dt><dd>{{types}}</dd>
+  </dl>
+</header>
+<div class="tooltip-body">
+  <section class="tooltip-costs" aria-label="Koszty">
+    <h3>Koszty</h3>
+    {{{costs}}}
+  </section>
+  <section class="tooltip-description" aria-label="Opis">
+    <h3>Opis</h3>
+    <div class="cocspell-desc">{{{description}}}</div>
+  </section>
+</div>
+<p class="tooltip-hint">Kliknij kartę, aby wybrać. Kliknij wybraną ponownie, aby wykonać Test Cast.</p>
