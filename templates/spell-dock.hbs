@@ -1,73 +1,30 @@
-<div id="coc7-spell-dock">
-  <!-- HEADER -->
-  <div class="dock-header">
+<div id="coc7-spell-dock" role="region" aria-label="Cthulhu Spell Reader">
+  <header class="dock-header">
     <div class="hdr-left">
-      <div style="display:flex; flex-direction:column; line-height:1.15;">
-        <div style="font-weight:900; font-size:22px;">{{casterName}}</div>
-        <div class="stats" id="coc7-spell-dock-stats">HP ? | MP ? | SAN ? | POW ?</div>
+      <div class="caster-info">
+        <div class="caster-name">{{casterName}}</div>
+        <div class="stats" id="coc7-spell-dock-stats"></div>
       </div>
-      {{#if isGM}}<div class="caster-badge">GM mode</div>{{/if}}
+      {{#if isGM}}<span class="caster-badge">GM mode</span>{{/if}}
     </div>
-
     <div class="hdr-mid">
-      <input id="coc7-spell-dock-search" type="text" placeholder="Szukaj zaklęcia..." />
+      <input id="coc7-spell-dock-search" type="search" placeholder="Szukaj zaklęcia…" aria-label="Szukaj zaklęcia" />
     </div>
-
     <div class="hdr-right">
-      <button class="btn" id="coc7-spell-dock-clear" type="button" title="Wyczyść wyszukiwanie">⌫</button>
-      <button class="btn" id="coc7-spell-dock-toggle" type="button" title="Zwiń/Rozwiń">⇵</button>
-      <button class="btn" id="coc7-spell-dock-close" type="button" title="Zamknij">X</button>
+      <button class="btn" data-action="clear" type="button" title="Wyczyść wyszukiwanie" aria-label="Wyczyść wyszukiwanie">⌫</button>
+      <button class="btn" data-action="toggle" type="button" title="Zwiń/Rozwiń" aria-label="Zwiń/Rozwiń" aria-expanded="true">⇵</button>
+      <button class="btn" data-action="close" type="button" title="Zamknij" aria-label="Zamknij">X</button>
     </div>
-  </div>
-
-  <!-- CAROUSEL -->
+  </header>
   <div class="dock-carousel">
-    <div class="car-arrow" id="coc7-spell-dock-left">◀</div>
-    <div class="car-viewport">
-      <div class="car-track" id="coc7-spell-dock-track"></div>
-    </div>
-    <div class="car-arrow" id="coc7-spell-dock-right">▶</div>
+    <button class="car-arrow" data-action="left" type="button" aria-label="Poprzednie zaklęcia">◀</button>
+    <div class="car-track" id="coc7-spell-dock-track" aria-label="Zaklęcia"></div>
+    <button class="car-arrow" data-action="right" type="button" aria-label="Następne zaklęcia">▶</button>
   </div>
-
-  <!-- DETAILS (expanded) -->
-  <div class="dock-details">
-    <div class="panel left">
-      <div class="left-top">
-        <div class="spell-title" id="coc7-spell-dock-spellTitle">—</div>
-        <div class="muted" id="coc7-spell-dock-spellMeta">—</div>
-      </div>
-
-      <details class="acc" open>
-        <summary>Koszty</summary>
-        <div id="coc7-spell-dock-costs"></div>
-      </details>
-
-      <div style="padding:10px 12px; border-top:1px solid rgba(255,255,255,0.06);">
-        <button class="bigbtn" id="coc7-spell-dock-cast" type="button">RZUĆ</button>
-        <div class="warn" id="coc7-spell-dock-castHint">—</div>
-      </div>
-    </div>
-
-    <div class="panel right">
-      <div class="right-head">Opis</div>
-      <div class="right-body">
-        <div id="coc7-spell-dock-desc" class="cocspell-desc"><i>Brak opisu — wybierz zaklęcie.</i></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- FLYOUT (collapsed) -->
-  <div class="spell-flyout" id="coc7-spell-dock-flyout">
-    <div class="fly-head">
-      <div style="min-width:0;">
-        <div class="fly-title" id="coc7-spell-dock-flyTitle">—</div>
-        <div class="fly-meta" id="coc7-spell-dock-flyMeta">—</div>
-      </div>
-      <button class="btn" id="coc7-spell-dock-flyClose" type="button">X</button>
-    </div>
-    <div class="fly-body">
-      <div class="fly-grid" id="coc7-spell-dock-flyGrid"></div>
-      <div class="fly-desc cocspell-desc" id="coc7-spell-dock-flyDesc"><i>—</i></div>
-    </div>
-  </div>
+  <p class="empty-spells" hidden>Brak zaklęć pasujących do wyszukiwania.</p>
+  <div class="dock-details" id="coc7-spell-dock-preview"></div>
+  <aside class="spell-flyout" id="coc7-spell-dock-flyout" aria-label="Podgląd zaklęcia" hidden>
+    <button class="btn fly-close" data-action="close-flyout" type="button" aria-label="Zamknij podgląd">X</button>
+    <div class="fly-preview"></div>
+  </aside>
 </div>

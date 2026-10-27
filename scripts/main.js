@@ -1,7 +1,6 @@
-import { MODULE_ID, SYSTEM_ID, SPELL_DICT_JSON_URL } from "./config.js";
+import { MODULE_ID, SYSTEM_ID } from "./config.js";
 import { getCasterTokenSmart } from "./actor.js";
 import { closeDock, isDockOpen, openDock } from "./spell-dock.js";
-import { clearTargetDictionaryCache } from "./target-dictionary.js";
 
 let opening = false;
 
@@ -16,7 +15,7 @@ export async function toggleSpellReader() {
   if (!casterActor.isOwner) return ui.notifications.warn("Nie masz uprawnień do tej postaci.");
 
   opening = true;
-  try { await openDock({ casterToken, casterActor }); }
+  try { await openDock({ casterActor }); }
   catch (error) {
     closeDock();
     console.error("Cthulhu Spell Reader | Nie udało się otworzyć panelu", error);
@@ -25,18 +24,6 @@ export async function toggleSpellReader() {
 }
 
 Hooks.once("init", () => {
-  game.settings.register(MODULE_ID, "targetDictionaryUrl", {
-    name: "Adres słownika celów zaklęć",
-    hint: "URL lub ścieżka do JSON z polami spellName (CoCID) i hasTarget (boolean). Puste pole włącza ręczny wybór celu.",
-    scope: "world",
-    config: true,
-    type: String,
-    default: SPELL_DICT_JSON_URL,
-    onChange: () => {
-      clearTargetDictionaryCache();
-      closeDock();
-    }
-  });
   game.keybindings.register(MODULE_ID, "toggle", {
     name: "Otwórz / zamknij panel zaklęć",
     editable: [],
@@ -48,8 +35,7 @@ Hooks.once("ready", () => {
   if (game.system.id !== SYSTEM_ID) return;
   game.modules.get(MODULE_ID).api = Object.freeze({
     toggle: toggleSpellReader,
-    close: closeDock,
-    clearTargetDictionaryCache
+    close: closeDock
   });
 });
 

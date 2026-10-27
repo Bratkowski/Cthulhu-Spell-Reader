@@ -1,0 +1,28 @@
+{{#if automated}}
+  <p class="cost-note">Kroki wykonywane w tej kolejności. Zmienne i koszty zostaną rozliczone przez system podczas rzucania.</p>
+  <ol class="cost-steps">
+    {{#each steps}}
+      <li class="cost-step">
+        <div class="cost-step-title">{{title}}</div>
+        {{#if condition}}<div class="cost-condition">Jeśli <code>{{condition}}</code></div>{{/if}}
+        {{#if fields.length}}
+          <dl class="cost-fields">
+            {{#each fields}}
+              <dt>{{label}}</dt>
+              <dd>{{#if formula}}<code>{{value}}</code>{{else}}{{value}}{{/if}}</dd>
+            {{/each}}
+          </dl>
+        {{/if}}
+      </li>
+    {{/each}}
+  </ol>
+{{else}}
+  {{#if legacy.length}}
+    <p class="cost-note">Starszy zapis kosztów. System pokaże go na czacie; nie pobiera tych wartości automatycznie.</p>
+    <dl class="cost-fields legacy-costs">
+      {{#each legacy}}<dt>{{label}}</dt><dd><code>{{value}}</code></dd>{{/each}}
+    </dl>
+  {{else}}
+    <p class="muted">Brak zdefiniowanych kosztów.</p>
+  {{/if}}
+{{/if}}

@@ -1,77 +1,65 @@
 # Cthulhu Spell Reader
 
-Moduł dla **Foundry VTT 14** i **Call of Cthulhu 7th Edition (CoC7) 8.16**, wydzielony z makra panelu zaklęć.
-
-Wersja 0.1.0 zachowuje karuzelę kart, wyszukiwanie, tryb rozwinięty i zwinięty, panel boczny, podgląd pod prawym przyciskiem myszy, koszty i raport na czacie. Przeszła 9 testów logiki oraz test panelu w przeglądarce z zastępczym API Foundry. Docelowe wersje są ograniczone w manifeście; pełny test w działającym świecie Foundry pozostaje do wykonania.
+Panel zaklęć dla **Foundry VTT 14** i **Call of Cthulhu 7th Edition (CoC7) 8.16**.
 
 ## Instalacja
 
-W Foundry wybierz **Add-on Modules → Install Module** i wklej adres manifestu:
+W **Add-on Modules → Install Module** wklej adres manifestu:
 
 ```text
 https://raw.githubusercontent.com/Bratkowski/Cthulhu-Spell-Reader/main/module.json
 ```
 
-Możesz też skopiować pliki repozytorium do `Data/modules/cthulhu-spell-reader/`, tak aby `module.json` leżał bezpośrednio w tym folderze. Uruchom ponownie Foundry i włącz moduł w **Manage Modules** w świecie CoC7.
+Albo skopiuj pliki repozytorium do `Data/modules/cthulhu-spell-reader/`, z `module.json` bezpośrednio w tym folderze. Uruchom ponownie Foundry i włącz moduł w **Manage Modules**.
 
-## Otwieranie panelu
+## Obsługa
 
-- Użyj przycisku książki z czaszką w narzędziach tokenów.
-- Albo utwórz makro typu **Script** z zawartością `macros/toggle-spell-reader.js` i przeciągnij je na pasek.
-- Możesz przypisać skrót w ustawieniach klawiatury Foundry.
+- Panel otwiera przycisk książki z czaszką w narzędziach tokenów. Ponowne kliknięcie zamyka panel.
+- Można też użyć makra `macros/toggle-spell-reader.js` lub przypisać skrót w ustawieniach klawiatury.
+- GM zaznacza token. Gracz korzysta z tokenu przypisanej postaci na aktywnej scenie.
+- Karty stykają się krawędziami. Wybrana karta powiększa się, a wysokość karuzeli płynnie się dostosowuje. Nazwa leży na przyciemnionym dole grafiki.
+- Pod nazwą, CoCID, czasem i typem są zakładki **Opis** (domyślna) i **Koszty**. Przycisk rzucania znajduje się w nagłówku podglądu.
+- PPM na karcie otwiera pływający podgląd z tymi samymi zakładkami. Escape, kliknięcie poza podglądem lub X zamyka go.
+- Przycisk ⇵ zwija panel do karuzeli. Stan, wybór i wyszukiwanie są zapamiętywane osobno dla użytkownika.
 
-GM wybiera zaznaczony token. Gracz korzysta z przypisanej postaci i jej tokenu na aktywnej scenie. Ponowne użycie przycisku lub makra zamyka panel. Rzucanie wymaga uprawnień właściciela aktora.
+## Rzucanie i koszty — system CoC7
 
-## Słownik celów
+**Test Cast** wywołuje dokładnie `spell.system.cast(true)`, tak jak przycisk „Test Cast” na karcie systemowej CoC7 8.16. Argument `true` oznacza ukrytą wiadomość na czacie. Na zaklęciu należącym do aktora system nadal pobiera z niego koszty; nie jest to symulacja bez zmian zasobów.
 
-W ustawieniach modułu można zmienić adres słownika JSON. Domyślnie pozostaje adres Forge używany przez oryginalne makro. Puste pole lub niedostępny plik umożliwia ręczny wybór, czy zaklęcie wymaga celu. Ustawienie ręczne i wartość `variable` są dostępne w rozwiniętym panelu.
+Wszystkie okna pytań, zmienne, kości, rozliczanie zasobów i wynik na czacie obsługuje CoC7. Moduł nie wykonuje własnych testów MOC, testów przeciwnych, odejmowania zasobów ani dodatkowych komunikatów na czacie. Nie rozpoznaje celów zaklęć i nie korzysta ze słownika celów.
 
-```json
-[
-  { "spellName": "i.spell.example", "hasTarget": true },
-  { "spellName": "i.spell.other", "hasTarget": false }
-]
-```
+Zakładka **Koszty** pokazuje `system.costList` w zapisanej kolejności, wraz z warunkami `@variable` / `!@variable`, formułami, pytaniami, grupami dodatkowych rzucających i ustawianiem zmiennych. Podgląd nie wykonuje kroków ani rzutów: wartości zależne od odpowiedzi i kości rozstrzyga system dopiero podczas rzucania.
 
-`spellName` oznacza CoCID z `flags.CoC7.cocidFlag.id`. Słownik jest przechowywany w pamięci przez 10 minut. Zmiana adresu czyści pamięć i zamyka panel; otwórz go ponownie, aby pobrać nowy słownik.
+Jeśli lista kroków jest pusta, panel pokazuje starsze `system.costs`. Zgodnie z zachowaniem CoC7 system raportuje starsze koszty na czacie, bez automatycznego pobierania ich z aktora.
 
-## Mechanika zachowana z makra
+Źródła: [dokumentacja zaklęć CoC7 8.16](https://github.com/Miskatonic-Investigative-Society/CoC7-FoundryVTT/blob/8.16/docs/en/item_spell.md), [obsługa przycisku na karcie](https://github.com/Miskatonic-Investigative-Society/CoC7-FoundryVTT/blob/8.16/coc7/models/item/spell-sheet.js), [nagłówek z Test Cast](https://github.com/Miskatonic-Investigative-Society/CoC7-FoundryVTT/blob/8.16/static/templates/items/spell-header.hbs), [systemowa metoda cast](https://github.com/Miskatonic-Investigative-Society/CoC7-FoundryVTT/blob/8.16/coc7/models/item/spell-system.js).
 
-- Obsługiwane są tekstowe pola `system.costs`: `hitPoints`, `magicPoints`, `sanity`, `power`, `others`. Koszty mogą zawierać liczby, kości, działania i `variable`.
-- Koszty są płacone również przy nieudanym teście. Brakujące MP są pobierane z HP. HP, SAN i POW są odejmowane bezpośrednio, tak jak w makrze; nie uruchamia to pełnej obsługi obrażeń i utraty poczytalności systemu.
-- Wykonywany jest test 1d100 przeciw MOC rzucającego. Dla zaklęć z celem dochodzi przeciwny test MOC. Zachowano rozstrzyganie remisów z makra: niższy wynik kości, a przy równych wynikach wygrywa rzucający.
-- Pole `others` jest tylko raportowane. Opis i raport nie nakładają automatycznie efektów zaklęcia na cel.
-- Nowsze automatyczne koszty `system.costList` nie są interpretowane. Dla takich zaklęć panel wyświetla komunikat, aby użyć karty systemowej CoC7, i nie pobiera zasobów.
-
-Stan panelu jest zapisywany osobno dla użytkownika we flagach modułu. Przy pierwszym użyciu odczytywane są też stare ustawienia `world.coc7SpellDockStateV1`. Oryginalny lokalny plik tekstowy nie jest modyfikowany ani publikowany.
-
-## Struktura
+## Pliki
 
 | Plik | Odpowiedzialność |
 | --- | --- |
-| `module.json` | Manifest i zgodność wersji |
-| `scripts/main.js` | Hooki, ustawienia, przycisk, skrót i API |
-| `scripts/config.js` | Identyfikatory i rozmiary panelu |
-| `scripts/spell-dock.js` | Interakcje panelu i zapamiętywanie stanu |
-| `templates/spell-dock.hbs` | Główna struktura HTML panelu |
-| `styles/spell-dock.css` | Wygląd panelu |
-| `scripts/casting.js` | Rzucanie zaklęć, pobieranie zasobów i czat |
-| `scripts/costs.js` | Koszty, kości i obliczenia |
-| `scripts/checks.js` | Stopnie sukcesu i testy MOC |
-| `scripts/actor.js` | Wybór tokenu i zasoby CoC7 |
-| `scripts/target-dictionary.js` | Słownik CoCID i pamięć podręczna |
-| `scripts/spells.js`, `scripts/utils.js` | Typy zaklęć i funkcje pomocnicze |
-| `macros/toggle-spell-reader.js` | Makro na pasek |
+| `scripts/main.js` | Uruchamianie, hooki, przycisk i API |
+| `scripts/spell-dock.js` | Karuzela, zakładki, PPM i stan użytkownika |
+| `scripts/casting.js` | Wywołanie systemowego Test Cast |
+| `scripts/costs.js` | Prezentacja kroków kosztów bez ich wykonywania |
+| `scripts/actor.js` | Wybór tokenu i odczyt zasobów |
+| `scripts/spells.js` | Typy i CoCID |
+| `templates/` | Szablony panelu, podglądu i kosztów |
+| `styles/spell-dock.css` | Wygląd, responsywność i animacje |
 
-## Rozwój i sprawdzanie
+Moduł nie wymaga budowania ani zależności w Foundry. Testy logiki w Node.js 22+: `npm test`.
 
-Moduł nie wymaga budowania ani zależności w Foundry. Testy logiki uruchomisz w Node.js 22+:
+Opcjonalny test interfejsu używa Playwright i Handlebars:
 
 ```sh
-npm test
+npm install --no-save playwright handlebars
+npx playwright install chromium
+node tests/browser-smoke.cjs
 ```
 
-Przed wydaniem sprawdź w świecie testowym Foundry 14 / CoC7 8.16: otwieranie jako GM i gracz, zamykanie i ponowne otwieranie, wyszukiwanie, oba tryby panelu, PPM, linki i rzuty w opisach, zmianę celu, `variable`, brak MP, raport na czacie i zmianę sceny. Użyj kopii postaci, ponieważ rzucanie zaklęć zmienia jej zasoby.
+Test korzysta z przykładowych danych i zastępczego API Foundry; sprawdza szablony, stykanie kart, powiększanie z animacją ramki, zakładki, przekazanie wywołania Test Cast, wyszukiwanie, PPM, wąski ekran oraz sprzątanie zdarzeń.
+
+Pełne sprawdzenie natywnych okien i rozliczenia kosztów należy wykonać w świecie Foundry 14 / CoC7 8.16 na kopii postaci.
 
 API dla makr:
 
@@ -79,5 +67,3 @@ API dla makr:
 await game.modules.get("cthulhu-spell-reader").api.toggle();
 game.modules.get("cthulhu-spell-reader").api.close();
 ```
-
-Punkty odniesienia: [manifest modułu Foundry](https://foundryvtt.com/article/module-development/), [API narzędzi sceny v14](https://foundryvtt.com/api/v14/functions/hookEvents.getSceneControlButtons.html), [model zaklęć CoC7 8.16](https://github.com/Miskatonic-Investigative-Society/CoC7-FoundryVTT/blob/8.16/coc7/models/item/spell-system.js).

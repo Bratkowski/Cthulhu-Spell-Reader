@@ -1,0 +1,159 @@
+// Optional UI check: requires Playwright, Handlebars and an installed Chromium.
+const fs = require("node:fs/promises");
+const path = require("node:path");
+const assert = require("node:assert/strict");
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
+const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handlebars/dist/handlebars.js");
+
+(async () => {
+  const root = path.resolve(__dirname, "..");
+  const browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE ? { executablePath: process.env.BROWSER_EXECUTABLE } : {}) });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" });
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await page.route("http://spell-reader.test/**", async route => {
+      const requested = new URL(route.request().url()).pathname;
+      if (requested === "/") return route.fulfill({ contentType: "text/html", body: '<!doctype html><html><head><script src="/handlebars.js"></script><link rel="stylesheet" href="/styles/spell-dock.css"></head><body><div id="hotbar" style="height:50px"></div></body></html>' });
+      if (requested === "/handlebars.js") return route.fulfill({ contentType: "text/javascript", body: await fs.readFile(handlebarsPath) });
+      const file = path.resolve(root, "." + decodeURIComponent(requested));
+      if (!file.startsWith(root + path.sep)) return route.abort();
+      try {
+        await route.fulfill({ contentType: requested.endsWith(".js") ? "text/javascript" : requested.endsWith(".css") ? "text/css" : "text/plain", body: await fs.readFile(file) });
+      } catch { await route.fulfill({ status: 404, body: "" }); }
+    });
+    await page.goto("http://spell-reader.test/");
+    await page.evaluate(async () => {
+      window.Hooks = {
+        events: new Map(),
+        on(name, fn) { const list = this.events.get(name) ?? new Set(); list.add(fn); this.events.set(name, list); },
+        off(name, fn) { this.events.get(name)?.delete(fn); }
+      };
+      const flags = {};
+      window.game = { user: {
+        isGM: true,
+        getFlag: (scope, key) => flags[scope + "." + key],
+        setFlag: async (scope, key, value) => { flags[scope + "." + key] = value; }
+      }, i18n: { localize: key => key } };
+      window.CONFIG = { Item: { dataModels: { spell: { availableCosts: () => [{ key: "mp", name: "Punkty Magii" }, { key: "pow", name: "MOC" }] } } } };
+      window.ui = { notifications: { warn: console.log, error: console.error } };
+      window.foundry = {
+        utils: { getProperty: (obj, key) => key.split(".").reduce((v, k) => v?.[k], obj) },
+        applications: {
+          ux: { TextEditor: { implementation: { enrichHTML: async raw => raw } } },
+          handlebars: { renderTemplate: async (url, data) => Handlebars.compile(await (await fetch("/" + url.split("/").slice(2).join("/"))).text())(data) }
+        }
+      };
+      window.actor = {
+        uuid: "Actor.test", isOwner: true, name: "Eldridge Strong",
+        system: { attribs: { hp: { value: 26 }, mp: { value: 5 }, san: { value: 63 } }, characteristics: { pow: { value: 60 } } },
+        items: [],
+        update() { throw Error("Module tried to deduct resources"); }
+      };
+      window.nativeCalls = [];
+      const names = ["Zaczarowany nóż", "Przywołanie mgły", "Szept otchłani", "Znak Starszych Bogów", "Brama snów", "Oko w ciemności", "Kontakt z głębiną", "Ochronny krąg"];
+      actor.items = names.map((name, index) => {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="180" height="280"><defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="hsl(${index * 35 + 220},35%,10%)"/><stop offset="1" stop-color="hsl(${index * 35 + 240},40%,35%)"/></linearGradient></defs><rect width="180" height="280" fill="url(#g)"/><circle cx="90" cy="110" r="48" fill="none" stroke="#c9b59a" stroke-width="1"/><path d="M90 50 L108 150 L52 88 L128 88 L72 150 Z" fill="none" stroke="#c9b59a"/><circle cx="90" cy="110" r="3" fill="#eee"/></svg>`;
+        return {
+          id: "spell" + index, name, img: "data:image/svg+xml," + encodeURIComponent(svg), type: "spell", parent: actor,
+          flags: { CoC7: { cocidFlag: { id: "i.spell.example-" + index } } },
+          system: {
+            costs: { magicPoints: "999" },
+            costList: [
+              { type: "promptRequireNumber", if: "", config: { prompt: "Ile punktów magii poświęcasz?", variable: "amount" } },
+              { type: "triggerPrompt", if: "", config: {} },
+              { type: "casterCost", if: "!@free", config: { modify: "mp", value: "2D6 + @amount" } },
+              { type: "casterCost", if: "@permanent", config: { modify: "pow", value: "1" } }
+            ],
+            castingTime: "2 godziny", type: { enchantment: true },
+            description: { value: "<p>Starożytny rytuał wiąże moc zaklęcia z wybranym przedmiotem. Zapisane symbole migoczą w półmroku, gdy rzucający wypowiada ostatnie słowa inkantacji.</p><p>Przygotowanie wymaga skupienia i odpowiedniego miejsca. Koszty oraz odpowiedzi na pytania zostaną rozliczone przez system.</p><p><a class='inline-roll' href='#'>1d6</a></p>" },
+            async cast(hidden) { nativeCalls.push({ id: "spell" + index, hidden }); }
+          }
+        };
+      });
+      window.dockModule = await import("/scripts/spell-dock.js");
+      await dockModule.openDock({ casterActor: actor });
+    });
+    assert.equal(await page.locator(".spell-card").count(), 8);
+    assert.equal(await page.locator(".spell-card button").count(), 0);
+    const layout = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll(".spell-card")];
+      const selected = cards[0].getBoundingClientRect();
+      const next = cards[1].getBoundingClientRect();
+      return { gap: next.left - selected.right, selected: selected.width, regular: next.width, radius: getComputedStyle(cards[0]).borderRadius };
+    });
+    assert.ok(Math.abs(layout.gap) < 1);
+    assert.ok(layout.selected > layout.regular);
+    assert.equal(layout.radius, "0px");
+    assert.equal(await page.locator('.dock-details [data-panel="description"]').isVisible(), true);
+    assert.equal(await page.locator('.dock-details [data-panel="costs"]').isVisible(), false);
+    await page.locator('.dock-details [data-tab="costs"]').click();
+    assert.equal(await page.locator(".dock-details .cost-step").count(), 4);
+    assert.match(await page.locator('.dock-details [data-panel="costs"]').innerText(), /2D6 \+ @amount/);
+    assert.match(await page.locator('.dock-details [data-panel="costs"]').innerText(), /!@free/);
+    assert.doesNotMatch(await page.locator('.dock-details [data-panel="costs"]').innerText(), /999/);
+    assert.equal(await page.evaluate(() => nativeCalls.length), 0);
+    await page.locator('.spell-card[data-spell-id="spell1"]').click();
+    await page.waitForSelector('.dock-details [data-panel="description"]:visible');
+    assert.equal(await page.locator('.dock-details [data-panel="costs"]').isVisible(), false);
+    await page.locator('.dock-details [data-action="cast"]').click();
+    await page.waitForFunction(() => nativeCalls.length === 1);
+    assert.deepEqual(await page.evaluate(() => nativeCalls[0]), { id: "spell1", hidden: true });
+    await page.locator('.dock-details [data-tab="description"]').focus();
+    await page.keyboard.press("ArrowRight");
+    assert.equal(await page.locator('.dock-details [data-panel="costs"]').isVisible(), true);
+    await fs.mkdir(path.join(root, ".local"), { recursive: true });
+    await page.screenshot({ path: path.join(root, ".local/costs-v020.png") });
+    await page.locator('.dock-details [data-tab="description"]').click();
+    await page.screenshot({ path: path.join(root, ".local/description-v020.png") });
+    await page.locator('[data-action="toggle"]').click();
+    assert.equal(await page.locator(".dock-details").isVisible(), false);
+    await page.locator('input[type="search"]').fill("nie ma wyników");
+    await page.waitForFunction(() => document.querySelectorAll(".spell-card").length === 0);
+    await page.locator('[data-action="clear"]').click();
+    await page.waitForFunction(() => document.querySelectorAll(".spell-card").length === 8);
+    const before = await page.locator(".dock-carousel").boundingBox();
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.locator('.spell-card[data-spell-id="spell0"]').click();
+    await page.waitForFunction(() => {
+      const selected = document.querySelector(".spell-card.selected").getBoundingClientRect();
+      const regular = document.querySelector(".spell-card:not(.selected)").getBoundingClientRect();
+      return selected.width >= regular.width * 1.35;
+    });
+    const after = await page.locator(".dock-carousel").boundingBox();
+    assert.ok(after.height > before.height);
+    assert.equal(await page.locator(".dock-carousel").evaluate(element => getComputedStyle(element).transitionDuration), "0.2s");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.locator('.spell-card[data-spell-id="spell0"]').click({ button: "right" });
+    await page.waitForSelector(".spell-flyout:visible");
+    assert.equal(await page.locator('.spell-flyout [data-panel="description"]').isVisible(), true);
+    await page.locator('.spell-flyout [data-tab="costs"]').click();
+    assert.equal(await page.locator(".spell-flyout .cost-step").count(), 4);
+    const fly = await page.locator(".spell-flyout").boundingBox();
+    assert.ok(fly.x >= 0 && fly.x + fly.width <= 1440);
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator(".spell-flyout").isVisible(), false);
+    await page.locator('[data-action="toggle"]').click();
+    await page.waitForSelector('.dock-details [data-panel="description"]:visible');
+    await page.locator('.dock-details [data-tab="description"]').click();
+    await page.locator(".dock-details .inline-roll").click();
+    assert.equal(await page.locator(".spell-card.selected").count(), 1);
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await page.locator("#coc7-spell-dock").isVisible(), true);
+    const mobile = await page.locator("#coc7-spell-dock").boundingBox();
+    assert.ok(mobile.x >= 0 && mobile.x + mobile.width <= 390);
+    assert.ok(mobile.y >= 0 && mobile.y + mobile.height <= 844);
+    await page.screenshot({ path: path.join(root, ".local/mobile-v020.png") });
+    for (let i = 0; i < 3; i++) {
+      await page.evaluate(async () => {
+        dockModule.closeDock();
+        for (const callbacks of Hooks.events.values()) if (callbacks.size) throw Error("Leaked hook");
+        await dockModule.openDock({ casterActor: actor });
+        for (const callbacks of Hooks.events.values()) if (callbacks.size !== 1) throw Error("Duplicated hook");
+        if (Hooks.events.has("targetToken")) throw Error("Target handling should be removed");
+      });
+    }
+    assert.deepEqual(errors, []);
+    console.log("PASS: touching square cards, selection/frame growth, description/cost tabs, native Test Cast, PPM, search, mobile layout and lifecycle");
+  } finally { await browser.close(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });

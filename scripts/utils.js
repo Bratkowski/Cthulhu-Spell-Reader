@@ -10,6 +10,3 @@ export function asIntFloor(x) {
   const n = Number(x);
   return Number.isFinite(n) ? Math.floor(n) : 0;
 }
-export function normalizeKey(s) {
-  return String(s ?? "").replace(/^\uFEFF/, "").trim().toLowerCase();
-}

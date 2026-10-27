@@ -1,136 +1,127 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { safeMathEval, evalCost } from "../scripts/costs.js";
-import { DEG, calcDegree, opposedResult } from "../scripts/checks.js";
-import { castSpellCore } from "../scripts/casting.js";
-import { clearTargetDictionaryCache, getSpellTargetInfo, getTargetDict } from "../scripts/target-dictionary.js";
+import { castSpell } from "../scripts/casting.js";
+import { getSpellCosts } from "../scripts/costs.js";
 
-const getProperty = (object, path) => path.split(".").reduce((value, key) => value?.[key], object);
-const setProperty = (object, path, value) => {
-  const keys = path.split(".");
-  const key = keys.pop();
-  keys.reduce((value, key) => value[key], object)[key] = value;
-};
-let rolls = [];
-let messages = [];
-let warnings = [];
-globalThis.foundry = {
-  utils: { getProperty },
-  applications: { ux: { TextEditor: { implementation: { enrichHTML: async html => html } } } }
-};
-globalThis.game = { user: { targets: new Set() }, settings: { get: () => "dictionary.json" } };
-globalThis.ui = { notifications: { warn: text => warnings.push(text), error: text => warnings.push(text) } };
-globalThis.Roll = class {
-  constructor(formula) { this.formula = formula; }
-  async roll() { this.total = rolls.shift() ?? 20; return this; }
-};
-globalThis.ChatMessage = { getSpeaker: () => ({}), create: async data => messages.push(data) };
+globalThis.game = { i18n: { localize: key => key } };
+globalThis.CONFIG = { Item: { dataModels: { spell: {
+  availableCosts: () => [{ key: "mp", name: "Punkty Magii" }, { key: "pow", name: "MOC" }, { key: "san", name: "Poczytalność" }]
+} } } };
+globalThis.ui = { notifications: { warn() {}, error() {} } };
+globalThis.Roll = class { constructor() { throw Error("Module must not roll dice"); } };
+globalThis.ChatMessage = { create() { throw Error("Module must not create spell chat messages"); } };
 
-function makeCaster(costs = {}) {
-  const casterActor = {
-    uuid: "Actor.caster", isOwner: true,
-    system: { attribs: { hp: { value: 12 }, mp: { value: 3 }, san: { value: 60 } }, characteristics: { pow: { value: 60 } } },
-    async update(changes) { for (const [path, value] of Object.entries(changes)) setProperty(this, path, value); }
+function makeSpell(cast = async () => {}) {
+  return {
+    type: "spell",
+    actor: { uuid: "Actor.caster", isOwner: true, update() { throw Error("Module must not deduct resources"); } },
+    system: { cast, costList: [] }
   };
-  const spell = { name: "Test <spell>", type: "spell", parent: casterActor, system: { costs, description: { value: "Opis" } } };
-  return { casterToken: { document: {} }, casterActor, spell, hasTargetNow: false, variableValue: 0 };
 }
 
-test("arithmetic handles precedence, unary minus and rejects malformed input", () => {
-  assert.equal(safeMathEval("2 * (3 + 4)"), 14);
-  assert.equal(safeMathEval("2*-3+10"), 4);
-  assert.equal(safeMathEval("2--3"), 5);
-  for (const value of ["1/0", "2+", "(2", "2a", "2(3)"]) {
-    assert.throws(() => safeMathEval(value));
-  }
-});
-
-test("costs combine dice and variable, round down and never pay a negative cost", async () => {
-  rolls = [4, 2];
-  assert.equal((await evalCost("1d6 + variable * 2 + d4", 3)).amount, 12);
-  assert.equal((await evalCost("5/2", 0)).amount, 2);
-  assert.equal((await evalCost("-5", 0)).amount, 0);
-  assert.equal((await evalCost("variable", -4)).amount, 0);
-  assert.equal((await evalCost("ofiara", 0)).amount, 0);
-});
-
-test("POW degree boundaries and original opposed tie behavior are preserved", () => {
-  for (const [roll, skill, degree] of [[1, 60, DEG.CRIT], [12, 60, DEG.EXTREME], [30, 60, DEG.HARD], [60, 60, DEG.REG], [61, 60, DEG.FAIL], [96, 40, DEG.FUMBLE], [96, 60, DEG.FAIL], [100, 60, DEG.FUMBLE]]) {
-    assert.equal(calcDegree(roll, skill), degree);
-  }
-  assert.equal(opposedResult({ degree: DEG.REG, total: 30 }, { degree: DEG.REG, total: 40 }), "caster");
-});
-
-test("casting pays MP shortage from HP and always pays SAN and POW", async () => {
-  rolls = [90]; messages = [];
-  const options = makeCaster({ hitPoints: "2", magicPoints: "5", sanity: "1", power: "3", others: "ofiara" });
-  assert.deepEqual(await castSpellCore(options), { ok: true, outcome: "fail" });
-  assert.equal(options.casterActor.system.attribs.mp.value, 0);
-  assert.equal(options.casterActor.system.attribs.hp.value, 8);
-  assert.equal(options.casterActor.system.attribs.san.value, 59);
-  assert.equal(options.casterActor.system.characteristics.pow.value, 57);
-  assert.equal(messages.length, 1);
-  assert.match(messages[0].content, /Test &lt;spell&gt;/);
-  assert.match(messages[0].content, /ofiara/);
-});
-
-test("missing target, ownership and costList do not charge the actor", async () => {
-  for (const kind of ["target", "owner", "costList"]) {
-    const options = makeCaster({ magicPoints: "2" });
-    if (kind === "target") options.hasTargetNow = true;
-    if (kind === "owner") options.casterActor.isOwner = false;
-    if (kind === "costList") options.spell.system.costList = [{}];
-    assert.deepEqual(await castSpellCore(options), { ok: false });
-    assert.equal(options.casterActor.system.attribs.mp.value, 3);
-  }
-});
-
-test("opposed POW produces a resisted spell and leaves target resources unchanged", async () => {
-  const target = makeCaster().casterActor;
-  game.user.targets = new Set([{ actor: target }]);
-  rolls = [50, 1];
-  const options = makeCaster(); options.hasTargetNow = true;
-  assert.deepEqual(await castSpellCore(options), { ok: true, outcome: "resisted" });
-  assert.equal(target.system.attribs.hp.value, 12);
-  game.user.targets.clear();
-});
-
-test("rapid repeated casts charge once while the first cast is pending", async () => {
-  const options = makeCaster({ magicPoints: "1" });
-  const first = castSpellCore(options);
-  assert.deepEqual(await castSpellCore(options), { ok: false });
-  await first;
-  assert.equal(options.casterActor.system.attribs.mp.value, 2);
-});
-
-test("dictionary deduplicates requests, normalizes CoCID and retains explicit false", async () => {
-  const originalFetch = globalThis.fetch;
-  let requests = 0;
-  globalThis.fetch = async () => {
-    requests++;
-    return { ok: true, json: async () => [{ spellName: " I.SPELL.TEST ", hasTarget: false }, { spellName: "invalid", hasTarget: "true" }] };
+test("Test Cast calls the native system method with true and preserves its receiver", async () => {
+  const spell = makeSpell();
+  let calls = 0;
+  spell.system.cast = async function (hidden) {
+    assert.equal(this, spell.system);
+    assert.equal(hidden, true);
+    calls++;
   };
-  try {
-    clearTargetDictionaryCache();
-    await Promise.all([getTargetDict(), getTargetDict()]);
-    const info = await getSpellTargetInfo({ flags: { CoC7: { cocidFlag: { id: "i.spell.test" } } } });
-    assert.deepEqual(info, { locked: true, hasTarget: false, key: "i.spell.test" });
-    assert.equal(requests, 1);
-    assert.equal((await getTargetDict()).has("invalid"), false);
-    game.settings.get = () => "";
-    assert.equal((await getTargetDict()).size, 0);
-  } finally {
-    globalThis.fetch = originalFetch;
-    game.settings.get = () => "dictionary.json";
-    clearTargetDictionaryCache();
-  }
+  assert.equal(await castSpell(spell), true);
+  assert.equal(calls, 1);
 });
 
-test("manifest entrypoints and template exist", async () => {
+test("native casting supports costList and legacy spells without rolling or charging locally", async () => {
+  let calls = 0;
+  const spell = makeSpell(async () => { calls++; });
+  spell.system.costList = [{ type: "casterCost", config: { modify: "mp", value: "@amount" } }];
+  await castSpell(spell);
+  spell.system.costList = [];
+  spell.system.costs = { magicPoints: "1d6" };
+  await castSpell(spell);
+  assert.equal(calls, 2);
+});
+
+test("unowned items and missing native methods never cast", async () => {
+  let calls = 0;
+  const spell = makeSpell(async () => { calls++; });
+  spell.actor.isOwner = false;
+  assert.equal(await castSpell(spell), false);
+  spell.actor.isOwner = true;
+  spell.system.cast = null;
+  assert.equal(await castSpell(spell), false);
+  assert.equal(calls, 0);
+});
+
+test("a pending native prompt cannot be launched twice for the same actor", async () => {
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  const spell = makeSpell(() => pending);
+  const first = castSpell(spell);
+  assert.equal(await castSpell(spell), false);
+  assert.equal(await castSpell({ ...spell, system: { cast: async () => assert.fail("Second spell cast") } }), false);
+  release();
+  assert.equal(await first, true);
+  assert.equal(await castSpell(makeSpell()), true);
+});
+
+test("system errors release the casting lock", async () => {
+  const original = console.error;
+  console.error = () => {};
+  try { assert.equal(await castSpell(makeSpell(async () => { throw Error("Native error"); })), false); }
+  finally { console.error = original; }
+  assert.equal(await castSpell(makeSpell()), true);
+});
+
+test("preview preserves step order, formulas, conditions and additional caster configuration", () => {
+  const costList = [
+    { type: "promptRequireNumber", if: "", config: { prompt: "Ile punktów?", variable: "amount" } },
+    { type: "triggerPrompt", if: "", config: {} },
+    { type: "casterCost", if: "!@free", config: { modify: "mp", value: "2D6 + @amount" } },
+    { type: "additionalCasterPromptAdd", if: "@group", config: { prompt: "Pomocnicy", variable: "casters", min: 0, step: 2 } },
+    { type: "additionalCasterCost", if: "", config: { modify: "pow", value: "@casters.mp" } }
+  ];
+  const before = JSON.stringify(costList);
+  const view = getSpellCosts({ system: { costList, costs: { magicPoints: "999" } } });
+  assert.equal(JSON.stringify(costList), before);
+  assert.equal(view.automated, true);
+  assert.deepEqual(view.legacy, []);
+  assert.deepEqual(view.steps.map(step => step.number), [1, 2, 3, 4, 5]);
+  assert.equal(view.steps[2].condition, "!@free");
+  assert.equal(view.steps[2].fields.find(field => field.formula).value, "2D6 + @amount");
+  assert.equal(view.steps[2].fields[0].value, "Punkty Magii");
+  assert.ok(view.steps[3].fields.some(field => field.value === "0"));
+});
+
+test("every documented step has a readable preview, including variable display aliases", () => {
+  const types = ["additionalCasterPromptAdd", "additionalCasterCost", "additionalCasterPromptRequireNumber", "additionalInformation", "castingTime", "casterCost", "promptRequireNumber", "promptShowText", "showVariable", "promptShowVariable", "promptToggleButton", "setVariable", "triggerPrompt"];
+  const view = getSpellCosts({ system: { costList: types.map(type => ({ type, if: "", config: { prompt: "Opis", value: "@x", variable: "x" } })) } });
+  view.steps.forEach((step, index) => {
+    assert.ok(step.title && step.title !== types[index]);
+    assert.ok(step.fields.some(field => field.value === "@x"));
+  });
+});
+
+test("legacy display shows only nonzero costs; unknown step fields remain visible", () => {
+  const view = getSpellCosts({ system: { costs: { magicPoints: "0", sanity: "1D4", others: "Ofiara", power: "" } } });
+  assert.equal(view.automated, false);
+  assert.deepEqual(view.legacy.map(row => row.value), ["1D4", "Ofiara"]);
+  const unknown = getSpellCosts({ system: { costList: [{ type: "futureStep", if: "@x", config: { option: { nested: 2 } } }] } });
+  assert.equal(unknown.steps[0].fields[0].value, '{"nested":2}');
+});
+
+test("system translations are used for step labels", () => {
+  const original = game.i18n.localize;
+  game.i18n.localize = key => key === "CoC7.Spell.Cost.CasterCost" ? "Caster cost" : key;
+  try { assert.equal(getSpellCosts({ system: { costList: [{ type: "casterCost", config: {} }] } }).steps[0].title, "Caster cost"); }
+  finally { game.i18n.localize = original; }
+});
+
+test("manifest and all templates exist", async () => {
   const manifest = JSON.parse(await readFile(new URL("../module.json", import.meta.url)));
-  assert.equal(manifest.id, "cthulhu-spell-reader");
-  for (const file of [...manifest.esmodules, ...manifest.styles, "templates/spell-dock.hbs"]) {
+  assert.equal(manifest.version, "0.2.0");
+  for (const file of [...manifest.esmodules, ...manifest.styles, "templates/spell-dock.hbs", "templates/spell-preview.hbs", "templates/spell-costs.hbs"]) {
     assert.ok((await readFile(new URL("../" + file, import.meta.url))).length);
   }
 });

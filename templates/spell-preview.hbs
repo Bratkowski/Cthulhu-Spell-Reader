@@ -1,0 +1,15 @@
+<header class="preview-header">
+  <div class="preview-heading">
+    <h2 class="spell-title">{{name}}</h2>
+    <div class="spell-meta">CoCID: {{cocid}} | Czas: {{castingTime}} | Typ: {{types}}</div>
+  </div>
+  <button class="cast-spell" type="button" data-action="cast">{{castLabel}}</button>
+</header>
+<div class="preview-tabs" role="tablist" aria-label="Podgląd zaklęcia">
+  <button type="button" role="tab" id="{{prefix}}-description-tab" aria-controls="{{prefix}}-description" aria-selected="true" data-tab="description">Opis</button>
+  <button type="button" role="tab" id="{{prefix}}-costs-tab" aria-controls="{{prefix}}-costs" aria-selected="false" tabindex="-1" data-tab="costs">Koszty</button>
+</div>
+<div class="preview-body">
+  <section id="{{prefix}}-description" role="tabpanel" aria-labelledby="{{prefix}}-description-tab" data-panel="description" class="cocspell-desc">{{{description}}}</section>
+  <section id="{{prefix}}-costs" role="tabpanel" aria-labelledby="{{prefix}}-costs-tab" data-panel="costs" hidden>{{{costs}}}</section>
+</div>

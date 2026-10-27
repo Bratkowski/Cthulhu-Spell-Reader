@@ -30,9 +30,6 @@ export function getCasterTokenSmart() {
   ui.notifications.warn(`Gracz: nie widzę tokenu postaci "${actor.name}" na tej scenie.`);
   return null;
 }
-export function getFirstTargetToken() {
-  return Array.from(game.user.targets ?? [])[0] ?? null;
-}
 
 // ---------- CoC7 resources ----------
 export function getPOW(actor) {
@@ -54,20 +51,4 @@ export function getSAN(actor) {
   return foundry.utils.getProperty(actor, "system.attribs.san.value")
     ?? foundry.utils.getProperty(actor, "system.san.value")
     ?? 0;
-}
-export function pathsForResources() {
-  return {
-    hp: "system.attribs.hp.value",
-    mp: "system.attribs.mp.value",
-    san: "system.attribs.san.value",
-    pow: "system.characteristics.pow.value"
-  };
-}
-export async function updateActorResource(actor, path, subtractPositiveInt) {
-  const cur = foundry.utils.getProperty(actor, path);
-  const curN = Number(cur);
-  const curVal = Number.isFinite(curN) ? curN : 0;
-  const sub = Math.max(0, subtractPositiveInt);
-  await actor.update({ [path]: curVal - sub });
-  return sub;
 }
