@@ -17,15 +17,15 @@ Albo skopiuj pliki repozytorium do `Data/modules/cthulhu-spell-reader/`, z `modu
 - Panel otwiera przycisk książki z czaszką w narzędziach tokenów. Ponowne kliknięcie zamyka panel.
 - Można też użyć makra `macros/toggle-spell-reader.js` lub przypisać skrót w ustawieniach klawiatury.
 - GM zaznacza token. Gracz korzysta z tokenu przypisanej postaci na aktywnej scenie.
-- Karty stykają się krawędziami, bez wspólnej ramki ani tła wokół karuzeli. Wybrana karta powiększa się, a wysokość karuzeli płynnie się dostosowuje. Nazwa leży na przyciemnionym dole grafiki.
+- Karty stykają się krawędziami. W trybie rozwiniętym karuzela ma szare tło dopasowane do podglądu, a w zwiniętym pozostaje bez tła. Wybrana karta powiększa się, a wysokość karuzeli płynnie się dostosowuje. Nazwa leży na przyciemnionym dole grafiki.
 - Pod nazwą, CoCID, czasem i typem są zakładki **Opis** (domyślna) i **Koszty**. Przycisk rzucania znajduje się w nagłówku podglądu.
 - W rozwiniętym podglądzie zębatka obok **Test Cast** otwiera systemową kartę tego zaklęcia jako przedmiotu należącego do postaci.
 - W trybie zwiniętym najechanie na kartę lub ustawienie na niej fokusu pokazuje tooltip: nazwę, czas rzucania, typ, koszty i opis. Można przejść kursorem do tooltipu i przewijać jego treść.
 - W trybie zwiniętym pierwsze kliknięcie wybiera kartę, a drugie kliknięcie tej samej karty wykonuje natywny **Test Cast**. Zwykły dwuklik też uruchamia go raz. Po rzuceniu kolejne rzucanie wymaga ponownie dwóch kliknięć.
 - PPM przypina podgląd: w trybie zwiniętym tooltip, w rozwiniętym podgląd z zakładkami. Escape, kliknięcie poza podglądem lub X zamyka go.
 - Przycisk ⇵ zwija panel do karuzeli. Stan, wybór i wyszukiwanie są zapamiętywane osobno dla użytkownika.
-- W trybie zwiniętym nad kartami pozostaje tylko przełącznik ⇵ w prawym górnym rogu. Pełny nagłówek, statystyki i wyszukiwarka są widoczne po rozwinięciu.
-- Kliknięcie strzałki karuzeli odznacza zaklęcie i resetuje sekwencję kliknięć Test Cast. Najechanie na karty nie cofa przewijania do poprzedniego wyboru.
+- W trybie zwiniętym nad kartami pozostaje tylko przełącznik ⇵ w lewym górnym rogu. Pełny nagłówek, statystyki i wyszukiwarka są widoczne po rozwinięciu.
+- W obu trybach strzałki mają wysokość niewybranej karty. W trybie zwiniętym kliknięcie strzałki odznacza zaklęcie i resetuje sekwencję kliknięć Test Cast. W rozwiniętym zachowuje wybór, opis, aktywną zakładkę i jej przewinięcie. Najechanie na karty nie cofa karuzeli do wcześniejszego wyboru.
 
 ### Makro na dolny pasek
 

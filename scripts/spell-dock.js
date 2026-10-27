@@ -55,6 +55,7 @@ export async function openDock({ casterActor }) {
   let tooltipTimer;
   let tooltipHideTimer;
   let clickedSpellId = null;
+  let autoRevealSelection = false;
   let casting = false;
   let disposed = false;
 
@@ -121,6 +122,7 @@ export async function openDock({ casterActor }) {
   }
 
   function revealSelection() {
+    if (!autoRevealSelection) return;
     const card = track.querySelector(".spell-card.selected");
     if (!card) return;
     const bounds = track.getBoundingClientRect();
@@ -191,6 +193,7 @@ export async function openDock({ casterActor }) {
   }
 
   async function selectSpell(id) {
+    autoRevealSelection = !!id;
     state.spellId = id;
     closeFlyout();
     track.querySelectorAll(".spell-card").forEach(card => {
@@ -312,7 +315,10 @@ export async function openDock({ casterActor }) {
         break;
       case "left": case "right":
         clickedSpellId = null;
-        void selectSpell(null);
+        autoRevealSelection = false;
+        closeFlyout();
+        // Full view keeps its selected spell, current tab and preview scroll.
+        if (!state.expanded) void selectSpell(null);
         track.scrollBy({ left: track.clientWidth * 0.8 * (button.dataset.action === "left" ? -1 : 1), behavior: "smooth" });
         break;
       case "cast": {
@@ -366,6 +372,7 @@ export async function openDock({ casterActor }) {
   track.addEventListener("wheel", event => {
     if (Math.abs(event.deltaY) <= Math.abs(event.deltaX) || track.scrollWidth <= track.clientWidth) return;
     event.preventDefault();
+    autoRevealSelection = false;
     track.scrollLeft += event.deltaY;
   }, { passive: false, signal });
   track.addEventListener("scroll", () => {

@@ -92,6 +92,10 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
       return { background: style.backgroundColor, border: style.borderWidth, shadow: style.boxShadow };
     });
     assert.deepEqual(shell, { background: "rgba(0, 0, 0, 0)", border: "0px", shadow: "none" });
+    assert.equal(await page.locator('.dock-carousel').evaluate(element => getComputedStyle(element).backgroundColor), "rgba(25, 25, 25, 0.94)");
+    const fullArrow = await page.locator('[data-action="right"]').boundingBox();
+    const regularCard = await page.locator('.spell-card:not(.selected)').first().boundingBox();
+    assert.ok(Math.abs(fullArrow.height - regularCard.height) < 1);
     assert.equal(await page.locator('.dock-details [data-panel="description"]').isVisible(), true);
     assert.equal(await page.locator('.dock-details [data-panel="costs"]').isVisible(), false);
     await page.locator('.dock-details [data-action="open-item"]').click();
@@ -118,6 +122,45 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
     await page.screenshot({ path: path.join(root, ".local/costs-v030.png") });
     await page.locator('.dock-details [data-tab="description"]').click();
     await page.screenshot({ path: path.join(root, ".local/description-v030.png") });
+    // Full-view navigation must preserve the exact preview and never snap back.
+    await page.setViewportSize({ width: 600, height: 1000 });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.locator('.spell-card[data-spell-id="spell0"]').click();
+    await page.waitForSelector('.dock-details [data-tab="costs"]');
+    await page.locator('.dock-details [data-tab="costs"]').click();
+    const fullContext = await page.locator('.dock-details').evaluate(element => {
+      const body = element.querySelector('.preview-body');
+      body.scrollTop = 40;
+      window.contextBeforeBrowse = element.querySelector('[data-panel="costs"]');
+      return { html: element.innerHTML, scrollTop: body.scrollTop };
+    });
+    await page.locator('[data-action="right"]').click();
+    await page.waitForFunction(() => {
+      const track = document.querySelector('.car-track');
+      return track.scrollLeft >= track.scrollWidth - track.clientWidth - 2;
+    });
+    assert.equal(await page.locator('.spell-card.selected').getAttribute('data-spell-id'), 'spell0');
+    const fullBrowse = await page.locator('.car-track').evaluate(track => {
+      const bounds = track.getBoundingClientRect();
+      const selected = track.querySelector('.selected').getBoundingClientRect();
+      const visible = [...track.querySelectorAll('.spell-card')].find(card => {
+        const rect = card.getBoundingClientRect();
+        return rect.left >= bounds.left && rect.right <= bounds.right;
+      });
+      return { selectedOffscreen: selected.right <= bounds.left, scrollLeft: track.scrollLeft, id: visible.dataset.spellId };
+    });
+    assert.equal(fullBrowse.selectedOffscreen, true);
+    await page.locator(`.spell-card[data-spell-id="${fullBrowse.id}"]`).hover();
+    // Wait for the border hover animation that previously caused snap-back.
+    await page.waitForTimeout(260);
+    assert.ok(await page.locator('.car-track').evaluate(track => track.scrollLeft) >= fullBrowse.scrollLeft - 2);
+    assert.deepEqual(await page.locator('.dock-details').evaluate(element => ({ html: element.innerHTML, scrollTop: element.querySelector('.preview-body').scrollTop })), fullContext);
+    assert.equal(await page.evaluate(() => document.querySelector('.dock-details [data-panel="costs"]') === contextBeforeBrowse), true);
+    assert.equal(await page.locator('.dock-details [data-tab="costs"]').getAttribute('aria-selected'), 'true');
+    await page.locator('[data-action="left"]').click();
+    assert.equal(await page.locator('.spell-card.selected').getAttribute('data-spell-id'), 'spell0');
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.locator('input[type="search"]').fill("nie ma wyników");
     await page.waitForFunction(() => document.querySelectorAll(".spell-card").length === 0);
     await page.locator('[data-action="clear"]').click();
@@ -131,9 +174,13 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
     const compactToggle = await page.locator('[data-action="toggle"]').boundingBox();
     const compactDock = await page.locator('#coc7-spell-dock').boundingBox();
     const compactCarousel = await page.locator('.dock-carousel').boundingBox();
-    assert.ok(Math.abs(compactToggle.x + compactToggle.width - compactDock.x - compactDock.width) < 1);
+    assert.ok(Math.abs(compactToggle.x - compactDock.x) < 1);
     assert.ok(compactToggle.y + compactToggle.height <= compactCarousel.y);
-    await page.screenshot({ path: path.join(root, ".local/compact-v031.png") });
+    assert.equal(await page.locator('.dock-carousel').evaluate(element => getComputedStyle(element).backgroundColor), "rgba(0, 0, 0, 0)");
+    const compactArrow = await page.locator('[data-action="right"]').boundingBox();
+    const compactRegularCard = await page.locator('.spell-card:not(.selected)').first().boundingBox();
+    assert.ok(Math.abs(compactArrow.height - compactRegularCard.height) < 1);
+    await page.screenshot({ path: path.join(root, ".local/compact-v033.png") });
     await page.locator('.spell-card[data-spell-id="spell2"]').hover();
     await page.waitForSelector(".spell-flyout.is-tooltip:visible");
     assert.equal(await page.locator(".tooltip-header .spell-title").innerText(), "Szept otchłani");
@@ -270,6 +317,6 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
     }, macroSource);
     assert.deepEqual(macroResults, { apiOpened: true, apiClosed: true, toolOpened: true, toolClosed: true });
     assert.deepEqual(errors, []);
-    console.log("PASS: compact header, arrow navigation, item sheet, tooltip, casting, tabs, mobile, lifecycle and hotbar macro via API/scene tool");
+    console.log("PASS: compact top-left toggle, card-height arrows, expanded gray carousel/preserved context/no snap-back, tooltips, casting, mobile, lifecycle and hotbar macro");
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
