@@ -47,7 +47,7 @@ Hooks.on("getSceneControlButtons", controls => {
     icon: "fa-solid fa-book-skull",
     order: Object.keys(controls.tokens.tools).length,
     button: true,
-    onChange: () => { void toggleSpellReader(); }
+    onChange: toggleSpellReader
   };
 });
 

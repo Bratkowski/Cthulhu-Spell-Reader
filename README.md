@@ -27,6 +27,14 @@ Albo skopiuj pliki repozytorium do `Data/modules/cthulhu-spell-reader/`, z `modu
 - W trybie zwiniętym nad kartami pozostaje tylko przełącznik ⇵ w prawym górnym rogu. Pełny nagłówek, statystyki i wyszukiwarka są widoczne po rozwinięciu.
 - Kliknięcie strzałki karuzeli odznacza zaklęcie i resetuje sekwencję kliknięć Test Cast. Najechanie na karty nie cofa przewijania do poprzedniego wyboru.
 
+### Makro na dolny pasek
+
+Utwórz w Foundry makro typu **Script**, wklej pełną zawartość [`macros/toggle-spell-reader.js`](macros/toggle-spell-reader.js), zapisz i przeciągnij makro na dolny pasek. Jako GM najpierw zaznacz token postaci. Ponowne użycie makra zamyka panel.
+
+Makro używa API modułu, a jeśli jest ono niedostępne, wywołuje ten sam przycisk co narzędzia tokenów. Identyfikator zawiera myślniki, dlatego dostęp do narzędzia wymaga zapisu `tools?.["cthulhu-spell-reader"]`.
+
+Po aktualizacji modułu odśwież świat. Treść wcześniej zapisanego makra w świecie trzeba podmienić ręcznie — aktualizacja modułu nie zmienia istniejących makr.
+
 ## Rzucanie i koszty — system CoC7
 
 **Test Cast** wywołuje dokładnie `spell.system.cast(true)`, tak jak przycisk „Test Cast” na karcie systemowej CoC7 8.16. Argument `true` oznacza ukrytą wiadomość na czacie. Na zaklęciu należącym do aktora system nadal pobiera z niego koszty; nie jest to symulacja bez zmian zasobów.

@@ -241,7 +241,35 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
         if (Hooks.events.has("targetToken")) throw Error("Target handling should be removed");
       });
     }
+    const macroSource = await fs.readFile(path.join(root, "macros/toggle-spell-reader.js"), "utf8");
+    const macroResults = await page.evaluate(async source => {
+      dockModule.closeDock();
+      const onceCallbacks = new Map();
+      Hooks.once = (name, callback) => onceCallbacks.set(name, callback);
+      game.system = { id: "CoC7" };
+      game.keybindings = { register() {} };
+      game.modules = new Map([["cthulhu-spell-reader", { active: true }]]);
+      window.canvas = { ready: true, tokens: { controlled: [{ actor }] } };
+      await import("/scripts/main.js");
+      onceCallbacks.get("init")();
+      onceCallbacks.get("ready")();
+      const controls = { tokens: { tools: {} } };
+      for (const callback of Hooks.events.get("getSceneControlButtons")) callback(controls);
+      ui.controls = { controls };
+      const run = new (Object.getPrototypeOf(async function () {}).constructor)(source);
+      await run();
+      const apiOpened = dockModule.isDockOpen();
+      await run();
+      const apiClosed = !dockModule.isDockOpen();
+      delete game.modules.get("cthulhu-spell-reader").api;
+      await run();
+      const toolOpened = dockModule.isDockOpen();
+      await run();
+      const toolClosed = !dockModule.isDockOpen();
+      return { apiOpened, apiClosed, toolOpened, toolClosed };
+    }, macroSource);
+    assert.deepEqual(macroResults, { apiOpened: true, apiClosed: true, toolOpened: true, toolClosed: true });
     assert.deepEqual(errors, []);
-    console.log("PASS: compact toggle-only header, arrow deselection/no snap-back, item sheet, tooltip, casting, tabs, search, mobile and lifecycle");
+    console.log("PASS: compact header, arrow navigation, item sheet, tooltip, casting, tabs, mobile, lifecycle and hotbar macro via API/scene tool");
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
