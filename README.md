@@ -24,6 +24,8 @@ Albo skopiuj pliki repozytorium do `Data/modules/cthulhu-spell-reader/`, z `modu
 - W trybie zwiniętym pierwsze kliknięcie wybiera kartę, a drugie kliknięcie tej samej karty wykonuje natywny **Test Cast**. Zwykły dwuklik też uruchamia go raz. Po rzuceniu kolejne rzucanie wymaga ponownie dwóch kliknięć.
 - PPM przypina podgląd: w trybie zwiniętym tooltip, w rozwiniętym podgląd z zakładkami. Escape, kliknięcie poza podglądem lub X zamyka go.
 - Przycisk ⇵ zwija panel do karuzeli. Stan, wybór i wyszukiwanie są zapamiętywane osobno dla użytkownika.
+- W trybie zwiniętym nad kartami pozostaje tylko przełącznik ⇵ w prawym górnym rogu. Pełny nagłówek, statystyki i wyszukiwarka są widoczne po rozwinięciu.
+- Kliknięcie strzałki karuzeli odznacza zaklęcie i resetuje sekwencję kliknięć Test Cast. Najechanie na karty nie cofa przewijania do poprzedniego wyboru.
 
 ## Rzucanie i koszty — system CoC7
 

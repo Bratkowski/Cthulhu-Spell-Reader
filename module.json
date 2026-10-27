@@ -2,7 +2,7 @@
   "id": "cthulhu-spell-reader",
   "title": "Cthulhu Spell Reader",
   "description": "Panel zaklęć dla Call of Cthulhu 7e: karuzela, opis, kroki kosztów i systemowy Test Cast.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "authors": [{ "name": "Bratkowski" }],
   "compatibility": { "minimum": "14", "maximum": "14" },
   "relationships": {

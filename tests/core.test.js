@@ -120,7 +120,7 @@ test("system translations are used for step labels", () => {
 
 test("manifest and all templates exist", async () => {
   const manifest = JSON.parse(await readFile(new URL("../module.json", import.meta.url)));
-  assert.equal(manifest.version, "0.3.0");
+  assert.equal(manifest.version, "0.3.1");
   for (const file of [...manifest.esmodules, ...manifest.styles, "templates/spell-dock.hbs", "templates/spell-preview.hbs", "templates/spell-costs.hbs", "templates/spell-tooltip.hbs"]) {
     assert.ok((await readFile(new URL("../" + file, import.meta.url))).length);
   }

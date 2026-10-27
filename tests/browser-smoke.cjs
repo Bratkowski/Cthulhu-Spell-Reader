@@ -118,8 +118,22 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
     await page.screenshot({ path: path.join(root, ".local/costs-v030.png") });
     await page.locator('.dock-details [data-tab="description"]').click();
     await page.screenshot({ path: path.join(root, ".local/description-v030.png") });
+    await page.locator('input[type="search"]').fill("nie ma wyników");
+    await page.waitForFunction(() => document.querySelectorAll(".spell-card").length === 0);
+    await page.locator('[data-action="clear"]').click();
+    await page.waitForFunction(() => document.querySelectorAll(".spell-card").length === 8);
     await page.locator('[data-action="toggle"]').click();
     assert.equal(await page.locator(".dock-details").isVisible(), false);
+    assert.equal(await page.locator(".caster-info").isVisible(), false);
+    assert.equal(await page.locator('input[type="search"]').isVisible(), false);
+    assert.equal(await page.locator('.dock-header button:visible').count(), 1);
+    assert.equal(await page.locator('[data-action="toggle"]').isVisible(), true);
+    const compactToggle = await page.locator('[data-action="toggle"]').boundingBox();
+    const compactDock = await page.locator('#coc7-spell-dock').boundingBox();
+    const compactCarousel = await page.locator('.dock-carousel').boundingBox();
+    assert.ok(Math.abs(compactToggle.x + compactToggle.width - compactDock.x - compactDock.width) < 1);
+    assert.ok(compactToggle.y + compactToggle.height <= compactCarousel.y);
+    await page.screenshot({ path: path.join(root, ".local/compact-v031.png") });
     await page.locator('.spell-card[data-spell-id="spell2"]').hover();
     await page.waitForSelector(".spell-flyout.is-tooltip:visible");
     assert.equal(await page.locator(".tooltip-header .spell-title").innerText(), "Szept otchłani");
@@ -137,12 +151,13 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
     await page.locator(".tooltip-description").hover();
     assert.equal(await page.locator(".spell-flyout").isVisible(), true);
     await page.screenshot({ path: path.join(root, ".local/tooltip-v030.png") });
-    await page.locator('input[type="search"]').hover();
+    await page.mouse.move(20, 20);
     await page.waitForSelector(".spell-flyout", { state: "hidden" });
-    await page.locator('input[type="search"]').fill("nie ma wyników");
-    await page.waitForFunction(() => document.querySelectorAll(".spell-card").length === 0);
-    await page.locator('[data-action="clear"]').click();
-    await page.waitForFunction(() => document.querySelectorAll(".spell-card").length === 8);
+    await page.locator('[data-action="right"]').click();
+    await page.waitForFunction(() => document.querySelector('.car-track').scrollLeft > 10);
+    assert.equal(await page.locator('.spell-card.selected').count(), 0);
+    await page.locator('[data-action="left"]').click();
+    await page.waitForFunction(() => document.querySelector('.car-track').scrollLeft < 1);
     const before = await page.locator(".dock-carousel").boundingBox();
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.locator('.spell-card[data-spell-id="spell0"]').click();
@@ -173,6 +188,7 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
     await page.waitForFunction(() => nativeCalls.length === 3);
     assert.deepEqual(await page.evaluate(() => nativeCalls[2]), { id: "spell3", hidden: true });
     await page.locator('[data-action="toggle"]').click();
+    assert.equal(await page.locator('input[type="search"]').isVisible(), true);
     await page.waitForSelector('.dock-details [data-panel="description"]:visible');
     await page.locator('.dock-details [data-tab="description"]').click();
     await page.locator(".dock-details .inline-roll").click();
@@ -190,6 +206,32 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
     assert.ok(mobileTooltip.x >= 0 && mobileTooltip.x + mobileTooltip.width <= 390);
     assert.ok(mobileTooltip.y >= 0 && mobileTooltip.y + mobileTooltip.height <= 844);
     await page.keyboard.press("Escape");
+    // Regression: navigation clears selection, and hover must not snap back.
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.locator('.spell-card[data-spell-id="spell0"]').click();
+    const castsBeforeBrowse = await page.evaluate(() => nativeCalls.length);
+    await page.locator('[data-action="right"]').click();
+    await page.waitForFunction(() => document.querySelector('.car-track').scrollLeft > 100);
+    assert.equal(await page.locator('.spell-card.selected').count(), 0);
+    assert.equal(await page.locator('.spell-card[aria-pressed="true"]').count(), 0);
+    await page.waitForFunction(() => game.user.getFlag('cthulhu-spell-reader', 'coc7SpellDockStateV1').spellId === null);
+    const browsedCard = await page.locator('.car-track').evaluate(track => {
+      const bounds = track.getBoundingClientRect();
+      return [...track.querySelectorAll('.spell-card')].find(card => {
+        const rect = card.getBoundingClientRect();
+        return rect.left >= bounds.left && rect.right <= bounds.right;
+      }).dataset.spellId;
+    });
+    const browsedPosition = await page.locator('.car-track').evaluate(track => track.scrollLeft);
+    await page.locator(`.spell-card[data-spell-id="${browsedCard}"]`).hover();
+    await page.waitForSelector('.spell-flyout.is-tooltip:visible');
+    assert.ok(await page.locator('.car-track').evaluate(track => track.scrollLeft) >= browsedPosition - 2);
+    await page.keyboard.press('Escape');
+    await page.locator(`.spell-card[data-spell-id="${browsedCard}"]`).click();
+    assert.equal(await page.evaluate(() => nativeCalls.length), castsBeforeBrowse);
+    await page.locator('[data-action="left"]').click();
+    assert.equal(await page.locator('.spell-card.selected').count(), 0);
+    await page.emulateMedia({ reducedMotion: "reduce" });
     for (let i = 0; i < 3; i++) {
       await page.evaluate(async () => {
         dockModule.closeDock();
@@ -200,6 +242,6 @@ const handlebarsPath = require.resolve(process.env.HANDLEBARS_MODULE || "handleb
       });
     }
     assert.deepEqual(errors, []);
-    console.log("PASS: frameless UI, item sheet gear, hover tooltip, repeated selection/double-click native cast, tabs, PPM, search, mobile and lifecycle");
+    console.log("PASS: compact toggle-only header, arrow deselection/no snap-back, item sheet, tooltip, casting, tabs, search, mobile and lifecycle");
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

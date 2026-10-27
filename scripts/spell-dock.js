@@ -106,7 +106,10 @@ export async function openDock({ casterActor }) {
   function updateLayout() {
     dock.classList.toggle("collapsed", !state.expanded);
     preview.hidden = !state.expanded;
-    dock.querySelector('[data-action="toggle"]').setAttribute("aria-expanded", String(state.expanded));
+    const toggle = dock.querySelector('[data-action="toggle"]');
+    toggle.setAttribute("aria-expanded", String(state.expanded));
+    toggle.setAttribute("aria-label", state.expanded ? "Zwiń panel zaklęć" : "Rozwiń panel zaklęć");
+    toggle.title = state.expanded ? "Zwiń panel zaklęć" : "Rozwiń panel zaklęć";
     const hotbarHeight = document.getElementById("hotbar")?.offsetHeight ?? 0;
     dock.style.setProperty("--dock-bottom", `${hotbarHeight ? hotbarHeight + 18 : 88}px`);
     updateArrows();
@@ -197,7 +200,7 @@ export async function openDock({ casterActor }) {
     });
     dock.classList.toggle("has-selection", !!id);
     await Promise.all([renderPreview(), saveState()]);
-    if (!disposed) revealSelection();
+    if (!disposed && state.spellId === id) revealSelection();
   }
 
   async function openFlyout(id, card, { pinned = false } = {}) {
@@ -308,6 +311,8 @@ export async function openDock({ casterActor }) {
         await Promise.all([renderPreview(), saveState()]);
         break;
       case "left": case "right":
+        clickedSpellId = null;
+        void selectSpell(null);
         track.scrollBy({ left: track.clientWidth * 0.8 * (button.dataset.action === "left" ? -1 : 1), behavior: "smooth" });
         break;
       case "cast": {
@@ -369,7 +374,11 @@ export async function openDock({ casterActor }) {
     const card = track.querySelector(".spell-card:hover, .spell-card:focus-visible");
     if (card) scheduleTooltip(card, 180);
   }, { passive: true, signal });
-  track.addEventListener("transitionend", () => { revealSelection(); updateArrows(); }, { signal });
+  track.addEventListener("transitionend", event => {
+    // Hover changes border-color too; it must never move the carousel.
+    if (event.target.matches(".spell-card.selected") && ["width", "height", "flex-basis"].includes(event.propertyName)) revealSelection();
+    updateArrows();
+  }, { signal });
   search.addEventListener("input", () => {
     clickedSpellId = null;
     state.search = search.value;
